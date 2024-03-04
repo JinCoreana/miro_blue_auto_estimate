@@ -48,8 +48,10 @@
           })
             .then((response) => response.json())
             .then((data) => {
-              document.getElementById("response").innerHTML =
-                "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+              document.getElementById("response").innerHTML = JSON.stringify(
+                data,
+                null
+              );
             })
             .catch((error) => {
               document.getElementById("response").innerHTML = "Error: " + error;

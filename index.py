@@ -1,6 +1,7 @@
-from dotenv import load_dotenv
 import os
 import json
+import pandas as pd
+from dotenv import load_dotenv
 from openai import AzureOpenAI
 from flask import Flask, request, render_template
 from flask_cors import CORS
@@ -36,7 +37,6 @@ def estimate():
             
             csv_file.save('uploaded.csv')
 
-            import pandas as pd
             csvData = pd.read_csv('uploaded.csv')
             
             client = AzureOpenAI(
@@ -51,13 +51,13 @@ def estimate():
             message = [
                 {
                     "role": "system",
-                    "content": "As an AI bot developed by Sage Ltd., my primary function is to assist users with generating line items for contracts. I achieve this by utilizing JSON data to provide detailed insights and average prices based on the quantity and description entered by the user.Upon receiving input from the user, including quantity and description, I leverage the JSON data available to compute average prices and offer comprehensive explanations for each line item generated. These explanations are tailored to provide users with a clear understanding of how the average prices are derived and any relevant contextual information.",
+                    "content": "As an AI bot developed by Sage Ltd., my primary function is to assist users with generating line items for contracts. I achieve this by utilizing JSON data to provide detailed insights and average prices based on the quantity and description entered by the user. Upon receiving input from the user, including quantity and description, I leverage the JSON data available to compute average prices and offer comprehensive explanations for each line item generated. These explanations are tailored to provide users with a clear understanding of how the average prices are derived and any relevant contextual information.",
                 },            
                 {"role": "user", "content": userPrompt},
                 {"role": "user", "content": "Don't use the term 'dataset' call it 'previous invoices'"},
-                {"role": "user", "content": "Only return json format data without any other words and exclude ```json and ``` at the beginning and end of the response."},
+                {"role": "user", "content": "Only return json format data without any other words and exclude ```json and ``` instead, add [] at the beginning and end of the response."},
                 {"role": "user", "content": "Double check if all netAmount and totalAmount are correct and match the description and units but don't mention them in the response."},
-                {"role": "user", "content": "If there is no perfect matched item, so you had to leverage the similar items, mention those similar items in insight."},
+                {"role": "user", "content": "If there is no perfect matched item (including the item name can be considered as perfect match), so you had to leverage the similar items, mention those similar items in insight. And also mention minimum and maximum unit price"},
                       ]
             response  = client.chat.completions.create(
                 model="gpt-35-turbo-1106",
