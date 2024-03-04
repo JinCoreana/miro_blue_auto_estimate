@@ -45,19 +45,22 @@ def estimate():
                 api_version="2024-02-15-preview"
             )
             promptInput=request.form['userText']
-            contract= "{order: number;\ndescription: string;\nunits: number;\nunitPrice: { base: number; currency: number };\nnetAmount: { base: number; currency: number };\ntotalAmount: { base: number; currency: number };\ninsight: string;}"
-            userPrompt = f"based on the following csv data {csvData} representing all available items. create a new json data according to the following json contract {contract}. For insight, if prompt does not mention period, use 'The above data is based on last 30 days data' and also include the summary of why this is the outcome. If there is no perfect matched item, leverage the similar items and include the summary under insight, Based on all above response to {promptInput}"
+            contract= "{description: string;\nunits: number;\nunitPrice: { base: number; currency: number };\nnetAmount: { base: number; currency: number };\ntotalAmount: { base: number; currency: number };\ninsight: string;}"
+            userPrompt = f"based on the following csv data {csvData} representing all available items. create a new json data according to the following json contract {contract}. For insight, if prompt does not mention period, use 'The price is based on last 30 days invoices' and also include the summary of why this is the outcome. If there is no perfect matched item, leverage the similar items and include the summary under insight, Based on all above response to {promptInput}"
             print(f"Prompt: {userPrompt}")
             message = [
                 {
                     "role": "system",
-                    "content": "You are an AI bot for Sage.Ltd. You are trained to provide line items for a given contract. According to quantity and description that user entered and leverage all json data and provide average prices with explanation.",
-                },
+                    "content": "As an AI bot developed by Sage Ltd., my primary function is to assist users with generating line items for contracts. I achieve this by utilizing JSON data to provide detailed insights and average prices based on the quantity and description entered by the user.Upon receiving input from the user, including quantity and description, I leverage the JSON data available to compute average prices and offer comprehensive explanations for each line item generated. These explanations are tailored to provide users with a clear understanding of how the average prices are derived and any relevant contextual information.",
+                },            
                 {"role": "user", "content": userPrompt},
+                {"role": "user", "content": "Don't use the term 'dataset' call it 'previous invoices'"},
                 {"role": "user", "content": "Only return json format data without any other words and exclude ```json and ``` at the beginning and end of the response."},
+                {"role": "user", "content": "Double check if all netAmount and totalAmount are correct and match the description and units but don't mention them in the response."},
+                {"role": "user", "content": "If there is no perfect matched item, so you had to leverage the similar items, mention those similar items in insight."},
                       ]
             response  = client.chat.completions.create(
-                model="gpt-4-1106-preview",
+                model="gpt-35-turbo-1106",
                 messages = message,
                 temperature=0.7,
                 max_tokens=800,
