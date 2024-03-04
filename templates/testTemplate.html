@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+    <title>CSV File Upload</title>
+  </head>
+  <body id="page-top">
+    <div>Endpoint working....</div>
+    <form id="csvDataForm" enctype="multipart/form-data">
+      <label for="csvFile">Upload CSV File:</label><br />
+      <input
+        type="file"
+        id="csvFile"
+        name="csvFile"
+        accept=".csv"
+      /><br /><br />
+      <label for="userText">Ask for your estimate:</label><br />
+      <textarea id="userText" name="userText" rows="5" cols="50"></textarea
+      ><br /><br />
+
+      <input type="submit" value="Upload" />
+    </form>
+    <div id="response"></div>
+
+    <script>
+      document
+        .getElementById("csvDataForm")
+        .addEventListener("submit", function (event) {
+          event.preventDefault();
+
+          var formData = new FormData();
+          var fileInput = document.getElementById("csvFile");
+          var file = fileInput.files[0];
+          var userTextInput = document.getElementById("userText").value;
+
+          formData.append("csvFile", file);
+          formData.append("userText", userTextInput); // Append the text to the FormData object
+
+          fetch("/estimate", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              document.getElementById("response").innerHTML =
+                "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+            })
+            .catch((error) => {
+              document.getElementById("response").innerHTML = "Error: " + error;
+            });
+        });
+    </script>
+  </body>
+</html>
