@@ -28,19 +28,12 @@ def estimate():
         return render_template("testTemplate.html")
     elif request.method == "POST":
         try:
-            if 'csvFile' not in request.files:
-                return 'No file part'
-            
-            csv_file = request.files['csvFile']
-            
-            if csv_file.filename == '':
-                return 'No selected file'
-            
-            csv_file.save('uploaded.csv')
+       
+            requestBody = request.get_json()
+            print("requestBody", requestBody)
+            csvData = pd.DataFrame.from_dict(requestBody.get("data"))
+            promptInput = requestBody.get('userText')
 
-            csvData = pd.read_csv('uploaded.csv')
-            
-            promptInput=request.form['userText']
             contract= "{description: string;\nunits: number;\nunitPrice: { base: number; currency: number };\nnetAmount: { base: number; currency: number };\ntotalAmount: { base: number; currency: number };\ninsight: string;}"
             userPrompt = f"based on the following csv data {csvData} representing all available items. create a new json data according to the following json contract {contract}. For insight, if prompt does not mention period, use 'The price is based on last 30 days invoices' and also include the summary of why this is the outcome. If there is no perfect matched item, leverage the similar string description and include the summary under insight, Based on all above response to {promptInput}"
             print(f"Prompt: {userPrompt}")
