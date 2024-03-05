@@ -40,7 +40,7 @@
           var userTextInput = document.getElementById("userText").value;
 
           formData.append("csvFile", file);
-          formData.append("userText", userTextInput); // Append the text to the FormData object
+          formData.append("userText", userTextInput);
 
           fetch("/estimate", {
             method: "POST",
