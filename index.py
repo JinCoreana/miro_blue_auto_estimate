@@ -23,7 +23,7 @@ CORS(app)
 #     print("Token count:", token_count)
     
 @app.route("/estimate", methods=["GET","POST","PUT"])
-def estimate():
+def estimate():  
     if request.method == "GET":
         return render_template("testTemplate.html")
     elif request.method == "POST":
@@ -124,6 +124,75 @@ def estimate():
         except Exception as e:
             print("An error occurred:", e)
             return "An error occurred", 500     
+
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    try:
+        requestBody = request.get_json()
+        dataFrame = pd.DataFrame.from_dict(requestBody.get("data"))
+        csvFormatted = dataFrame.to_csv()
+
+        client = AzureOpenAI(
+            azure_endpoint="https://sagehackathonai.openai.azure.com/",
+            api_key=os.getenv("AZURE_OPENAI_KEY"),
+            api_version="2024-02-15-preview",
+        )
+
+        prompt_system = {
+            "role": "system",
+            "content": 'You are a helpful accountant assistant who helps individuals with their business and gives insights about their customers. Provide your answer in JSON structure like this {"topCustomers": [{"name": "","id": "","description": Markdown, "amount": number, "action" : enum [email, discount], "emailContent": Markdown}]}',
+        }
+        promt_user = {
+            "role": "user",
+            "content": "Please analyze the provided list of invoices and generate the following reports based on the specified rules: 1. Top Customers: 'Completed' invoices only. Rank these customers based on the total amount spent and total invoices and propose an action with emailContent. The list is {}".format(
+                csvFormatted
+            ),
+        }
+        promt_assistant = {
+            "role": "assistant",
+            "content": "To propose an action; for 'email' when a top user has not interacted a lot with the system so you would like to engage this user once more but no discount offered, and 'discount' when the top user makes a lot of transactions you will offer a discount code",
+        }
+        promt_assistant_2 = {
+            "role": "assistant",
+            "content": "please generate at least one top user with email and one top user with discount",
+        }
+        promt_assistant_3 = {
+            "role": "assistant",
+            "content": "emailContent should be following this format: 'Subject: Congratulations [user]! Enjoy [summary for email or discount]\n\n[greeting]\n\n[minimum 2 paragraphs]\n\n[warm regards]'",
+        }
+        promt_user_2 = {
+            "role": "user",
+            "content": "email content should be friendly of at least 150 words and use placeholders for discount code and percentage. Formatted as email",
+        }
+
+        message_text = [
+            prompt_system,
+            promt_user,
+            promt_assistant,
+            promt_assistant_2,
+            promt_assistant_3,
+            promt_user_2,
+        ]
+
+        completion = client.chat.completions.create(
+            model="gpt-35-turbo-1106",
+            messages=message_text,
+            temperature=0.1,
+            max_tokens=800,
+            top_p=0.95,
+            frequency_penalty=0,
+            presence_penalty=0,
+            stop=None,
+        )
+
+        completion_response = completion.choices[0].message.content
+        return json.loads(completion_response), "200"
+
+    except Exception as e:
+        print("An error occurred:", e)
+        return "An error occurred", 500
+
 if __name__ == "__main__":
     port = 8081
 app.run(port=port)
