@@ -22,42 +22,32 @@ CORS(app)
 #     token_count = len(input_text.split())
 #     print("Token count:", token_count)
     
-@app.route("/estimate", methods=["GET","POST"])
+@app.route("/estimate", methods=["GET","POST","PUT"])
 def estimate():
     if request.method == "GET":
         return render_template("testTemplate.html")
     elif request.method == "POST":
         try:
-       
             requestBody = request.get_json()
-            print("requestBody", requestBody)
             csvData = pd.DataFrame.from_dict(requestBody.get("data"))
+            print("requestBody", csvData)
             promptInput = requestBody.get('userText')
-
+        
             contract= "{description: string;\nunits: number;\nunitPrice: { base: number; currency: number };\nnetAmount: { base: number; currency: number };\ntotalAmount: { base: number; currency: number };\ninsight: string;}"
-            userPrompt = f"based on the following csv data {csvData} representing all available items. create a new json data according to the following json contract {contract}. For insight, if prompt does not mention period, use 'The price is based on last 30 days invoices' and also include the summary of why this is the outcome. If there is no perfect matched item, leverage the similar string description and include the summary under insight, Based on all above response to {promptInput}"
+            userPrompt = f"using csv dataset {csvData}. create a new json data according to the following json contract {contract}. For insight, explain how the price is generated info for users to understand including avg: £number (min: £number, max: £number). Make sure to whether it's from our past invoices or general UK market data(if items mentioned in {promptInput} has 90% similarity with any of 'description' in csv data, use the matched description from CSV data for the JSON response. If there are not matching items in csv data, use user´s input and find the market price without mentioning 'Sorry, we could not find the item from your invoice history. But here is the average price in the market.' and which year of the data and 'retrieved from UK market data from 20XX'). Based on all above create outcome from: {promptInput}"
             print(f"Prompt: {userPrompt}")
             message = [
                 {
                     "role": "system",
-                    "content": "As an AI bot developed by Sage that outcomes only json objects in an array as string, my primary function is to assist users with generating line items for contracts. I achieve this by utilizing JSON data to provide detailed insights and average prices based on the quantity and description(80% matched string) entered by the user. Upon receiving input from the user, including quantity and description, I leverage the JSON data available to compute average prices and offer comprehensive explanations for each line item generated. These explanations are tailored to provide users with a clear understanding of how the average prices are derived and any relevant contextual information.",
+                    "content": "As an AI bot developed by Sage that outcomes only json objects in an array as string, my primary function is to assist users with generating line items, firstly based on {csvData} and secondly UK Market data according to contracts. I outcome JSON data to provide detailed insight and average prices of all invoice objects based on the quantity and description entered in {promptInput}. Upon receiving {promptInput}, including quantity and description, I leverage the JSON data available to compute average prices and offer comprehensive explanations for each line item generated. These explanations are tailored to provide users with a clear understanding of what items were caught from the json dataset, if the similar item could not be found from the csv {csvData} then use UK market data.Return only JSON-formatted data as a string, excluding ```json and ```, and enclose the entire response within square brackets [] at the beginning and end.",
                 },            
-                {"role": "user", "content": userPrompt},
-                {"role": "user", "content": "The used items should have 80percent of similarity to the prompt item description. If there is not matched items, return [ { \"description\": null, \"units\": 5, \"unitPrice\": { \"base\": null, \"currency\": null }, \"netAmount\": { \"base\": null, \"currency\": null }, \"totalAmount\": { \"base\": null, \"currency\": null }, \"insight\": \"Based on last 30 days invoices. There is no price information for <b>prompt item</b>\" } ],"},
-                {"role": "user", "content": "Use 'previous invoices' instead of 'dataset'."},
-                {"role": "user", "content": "When processing the data, prioritize accuracy and relevance. Ensure that the generated responses adhere to the context provided in the prompt. If a term is ambiguous, interpret it in the most relevant manner based on the available data. Avoid introducing new information unless explicitly requested."},
-                {"role": "user", "content": "Interpret '2024-03-01' as a reference to a day if the prompt mentions '1 day' or 'one day'"},
-                {"role": "user", "content": "Interpret '2024-03-01'and '2024-03-02' as a reference to a two days if the prompt mentions '2 days' or 'two days'"},
-                {"role": "user", "content": "Verify the accuracy of netAmount and totalAmount without explicitly mentioning them in the response."},
-                {"role": "user", "content": "If the CSV data's 'Description' doesn't include the prompt's item name or a related keyword, just return null for all. Utilise similar items enclosed within <b></b> for additional context. Also, provide the average unit price, along with the minimum and maximum unit prices in the format avg: £2099 (min: £2099, max: £2099)."},
-                {"role": "user", "content": "Return only JSON-formatted data as a string, excluding ```json and ```, and enclose the entire response within square brackets [] at the beginning and end."},
-                   
+                { "role": "user", "content": userPrompt },
           ]
-            response  = client.chat.completions.create(
+            response = client.chat.completions.create(
                 model="gpt-35-turbo-1106",
                 messages = message,
                 temperature=0.2,
-                max_tokens=800,
+                max_tokens=3000,
                 top_p=0.95,
                 frequency_penalty=0,
                 presence_penalty=0,
@@ -71,7 +61,69 @@ def estimate():
         except Exception as e:
             print("An error occurred:", e)
             return "An error occurred", 500
-        
+    elif request.method == "PUT":
+        try:
+            requestBody = request.get_json()
+            csvData = pd.DataFrame.from_dict(requestBody.get("data"))
+            print("requestBody", csvData)
+            previousJson = requestBody.get('previousEstimate')
+            insight = requestBody.get('insight')
+            userText = requestBody.get('userText')
+            
+            prompt = f"Using the original JSON data {previousJson} as the template, depending on Insight:{insight} and uesrText:{userText}, revise the JSON data. If you need to add more items, use this csv dataset {csvData} to retrieve the average price and to apply discount, update unit price of the related item not affecting units and unrelated items, don't touch original object whose description was not mentioned in the user input. Return only JSON-formatted data without any other words as a string, excluding ```json and ```, and enclose the entire response within square brackets [] at the beginning and end. Make sure you revise the original JSON data with the new line items added or discounted applied on the exiting JSON object unit price depending on the user input. For insight, if you are updating unit price, remove original string and enter new input how the new price is calculated compared to the original data. Make sure you don't duplicate the same description."
+            # Generate new completion text based on updated prompt
+            
+            print(f"Prompt: {previousJson}, {insight},{userText}")
+            message = [  
+                 {
+                    "role": "system",
+                    "content": "As an AI bot developed by Sage that outcomes only json objects in an array as string, using the original JSON contract provided and updated JSON combining text inputs. my primary function is to assist users with generating line items, firstly based on {csvData} and secondly UK Market data according to contracts. I outcome JSON data to provide detailed insight and average prices of all invoice objects based on the quantity and description entered in {promptInput}. Upon receiving {promptInput}, including quantity and description, I leverage the JSON data available to compute average prices and offer comprehensive explanations for each line item generated. These explanations are tailored to provide users with a clear understanding of what items were caught from the json dataset, if the similar item could not be found from the csv {csvData} then use UK market data."
+                },
+                  {
+                    "role": "user",
+                    "content": "don't touch the objects in the original Json if the description is not mentioned in the Insight text. If the description is mentioned in the Insight's description, update the unit price of the related item not affecting units and unrelated items, don't touch original object whose description was not mentioned in the user input. If you need to add more items, use this csv dataset {csvData} to retrieve the average price and to apply discount, update unit price of the related item not affecting units and unrelated items, don't touch original object whose description was not mentioned in the user input. Return only JSON-formatted data as a string, excluding ```json and ```, and enclose the entire response within square brackets [] at the beginning and end. Make sure you revise the original JSON data with the new line items added or discounted applied on the exiting JSON object unit price depending on the user input. For insight, if you are updating unit price, remove original string and enter new input how the new price is calculated compared to the original data. Make sure you don't duplicate the same description."
+                },
+                # {
+                #     "role": "user",
+                #     "content": "updated this json data [{\"description\":\"Website Design\",\"insight\":\"The price is based on last 30 days invoices. The average price for 'Website Design' based on past invoices is £925 (min: £650, max: £1200).\",\"netAmount\":{\"base\":1200,\"currency\":1200},\"totalAmount\":{\"base\":1200,\"currency\":1200},\"unitPrice\":{\"base\":120,\"currency\":120},\"units\":10},{\"description\":\"Web Hosting\",\"insight\":\"Sorry, we could not find the item from your invoice history. But here is the average price in the market. The average price for 'Web Hosting' retrieved from UK market data from 2023 is £150 per year.\",\"netAmount\":{\"base\":450,\"currency\":450},\"totalAmount\":{\"base\":450,\"currency\":450},\"unitPrice\":{\"base\":150,\"currency\":150},\"units\":3}] leveraging 'Based on your past invoices, you could provide 10 percent discount on 'Hosting' item for minimum 3 years purchase, why don’t you propose it?!'"
+                # },
+                # {
+                #     "role": "assistant",
+                #     "content": "replace"  },
+                # {
+                #     "role": "user",
+                #     "content": "updated this json data [{\"description\":\"Website Design\",\"insight\":\"The price is based on last 30 days invoices. The average price for 'Website Design' based on past invoices is £925 (min: £650, max: £1200).\",\"netAmount\":{\"base\":1200,\"currency\":1200},\"totalAmount\":{\"base\":1200,\"currency\":1200},\"unitPrice\":{\"base\":120,\"currency\":120},\"units\":10},{\"description\":\"Web Hosting\",\"insight\":\"Sorry, we could not find the item from your invoice history. But here is the average price in the market. The average price for 'Web Hosting' retrieved from UK market data from 2023 is £150 per year.\",\"netAmount\":{\"base\":450,\"currency\":450},\"totalAmount\":{\"base\":450,\"currency\":450},\"unitPrice\":{\"base\":150,\"currency\":150},\"units\":3}] leveraging 'You could propose 'Logo Design' along with 'Website Design' item, would you like to add it?'"
+                # },
+                # {
+                #     "role": "assistant",
+                #     "content": "replace" },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            # gpt-4-1106-preview
+            # gpt-35-turbo-1106
+            response = client.chat.completions.create(
+                model="gpt-4-1106-preview",
+                messages=message,
+                temperature=0.2,
+                max_tokens=3000,
+                top_p=0.95,
+                frequency_penalty=0,
+                presence_penalty=0,
+                stop=None
+            )
+            
+            completion_text = response.choices[0].message.content  
+            print(f"Azure Response completion_text: {completion_text}")
+            
+            # Return refined completion_text
+            return json.loads(completion_text), 200
+            
+        except Exception as e:
+            print("An error occurred:", e)
+            return "An error occurred", 500     
 if __name__ == "__main__":
     port = 8081
 app.run(port=port)
